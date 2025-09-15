@@ -1,0 +1,3 @@
+const CONFIG = {
+    OPENAI_API_KEY: 'sk-your-actual-api-key-here'
+};
