@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>학생 발표 전사 및 평가 시스템</title>
+    <!-- API 키 설정 파일 -->
+    <script src="config.js"></script>
+    <script>
+        // 탭 전환 함수를 먼저 정의
+        function switchTab(tabName) {
+            // DOM이 로드된 후 실행
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => switchTab(tabName));
+                return;
+            }
+            
+            // 모든 탭과 컨텐츠 비활성화
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // 선택한 탭 활성화
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            const tabIndex = tabName === 'recording' ? 0 :
+                           tabName === 'transcription' ? 1 :
+                           tabName === 'evaluation' ? 2 : 3;
+            
+            if (tabs[tabIndex]) tabs[tabIndex].classList.add('active');
+            if (contents[tabIndex]) contents[tabIndex].classList.add('active');
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 15px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: white;
+            color: #6e8efb;
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .student-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .student-info input {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .student-info input:focus {
+            outline: none;
+            border-color: #6e8efb;
+        }
+
+        .recording-section {
+            text-align: center;
+            padding: 40px;
+            background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .recording-timer {
+            font-size: 72px;
+            font-weight: bold;
+            color: #6e8efb;
+            margin-bottom: 30px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .recording-timer.recording {
+            color: #f44336;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #f44336, #e91e63);
+        }
+
+        button.success {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+        }
+
+        .preview-area {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 150px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .preview-area:empty::before {
+            content: '실시간 미리보기가 여기에 표시됩니다...';
+            color: #999;
+            font-style: italic;
+        }
+
+        .transcription-result {
+            background: #fff;
+            border: 2px solid #6e8efb;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .evaluation-card {
+            background: linear-gradient(135deg, #f5f5f5, #fff);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .evaluation-card h3 {
+            color: #6e8efb;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .score-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
+        }
+
+        .score-badge.excellent {
+            background: #4caf50;
+            color: white;
+        }
+
+        .score-badge.good {
+            background: #8bc34a;
+            color: white;
+        }
+
+        .score-badge.average {
+            background: #ffc107;
+            color: white;
+        }
+
+        .score-badge.needs-improvement {
+            background: #ff9800;
+            color: white;
+        }
+
+        .coaching-question {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #6e8efb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status-message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-message.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .export-section {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+
+        .audio-visualizer {
+            height: 100px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+
+        .audio-bar {
+            width: 4px;
+            background: #6e8efb;
+            border-radius: 2px;
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        .audio-bar:nth-child(1) { height: 40%; animation-delay: 0s; }
+        .audio-bar:nth-child(2) { height: 60%; animation-delay: 0.1s; }
+        .audio-bar:nth-child(3) { height: 45%; animation-delay: 0.2s; }
+        .audio-bar:nth-child(4) { height: 70%; animation-delay: 0.3s; }
+        .audio-bar:nth-child(5) { height: 50%; animation-delay: 0.4s; }
+        .audio-bar:nth-child(6) { height: 65%; animation-delay: 0.5s; }
+        .audio-bar:nth-child(7) { height: 40%; animation-delay: 0.6s; }
+        .audio-bar:nth-child(8) { height: 55%; animation-delay: 0.7s; }
+
+        @keyframes wave {
+            0%, 100% { height: 40%; }
+            50% { height: 80%; }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .recording-timer {
+                font-size: 48px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 학생 발표 전사 및 평가 시스템</h1>
+
+        <!-- 탭 메뉴 -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('recording')">🎤 녹음</button>
+            <button class="tab" onclick="switchTab('transcription')">📝 전사</button>
+            <button class="tab" onclick="switchTab('evaluation')">📊 평가</button>
+            <button class="tab" onclick="switchTab('coaching')">💡 코칭</button>
+        </div>
+
+        <!-- 녹음 탭 -->
+        <div id="recording" class="tab-content active">
+            <h2>학생 정보 입력</h2>
+            <div class="student-info">
+                <input type="text" id="studentName" placeholder="학생 이름 *" required>
+                <input type="text" id="studentNumber" placeholder="학번">
+                <input type="text" id="presentationTitle" placeholder="발표 제목 *" required>
+                <input type="text" id="presentationTopic" placeholder="발표 주제 (예: 환경보호, 역사, 과학 등)">
+            </div>
+
+            <div class="recording-section">
+                <div class="recording-timer" id="timer">00:00</div>
+                
+                <div class="audio-visualizer" id="visualizer" style="display: none;">
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                    <div class="audio-bar"></div>
+                </div>
+
+                <div class="controls">
+                    <button id="startBtn" onclick="startRecording()">🎤 녹음 시작</button>
+                    <button id="stopBtn" onclick="confirmStop()" disabled class="danger">⏹️ 녹음 종료</button>
+                    <button onclick="resetSession()" class="success">🔄 새 세션</button>
+                </div>
+            </div>
+
+            <h3>실시간 미리보기</h3>
+            <div class="preview-area" id="previewArea"></div>
+            
+            <div id="recordingStatus"></div>
+        </div>
+
+        <!-- 전사 탭 -->
+        <div id="transcription" class="tab-content">
+            <h2>전사 결과</h2>
+            
+            <div class="empty-state" id="transcriptionEmpty">
+                <p style="text-align: center; padding: 40px; color: #666;">
+                    🎤 먼저 '녹음' 탭에서 발표를 녹음해주세요.<br><br>
+                    녹음이 완료되면 자동으로 전사 결과가 표시됩니다.
+                </p>
+            </div>
+            
+            <div class="loading" id="transcriptionLoading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Whisper AI로 정확한 전사를 진행 중입니다...</p>
+                <p>약 30초~1분 소요됩니다.</p>
+            </div>
+
+            <div class="transcription-result" id="transcriptionResult" style="display: none;">
+                <h3>📝 전사된 내용</h3>
+                <div id="finalTranscript"></div>
+            </div>
+
+            <div class="evaluation-card" style="display: none;" id="transcriptionStats">
+                <h3>📊 발표 통계</h3>
+                <p>📏 총 단어 수: <span id="wordCount">0</span>개</p>
+                <p>📝 총 문장 수: <span id="sentenceCount">0</span>개</p>
+                <p>⏱️ 발표 시간: <span id="presentationTime">0:00</span></p>
+                <p>💬 분당 단어 수: <span id="wordsPerMinute">0</span>개</p>
+            </div>
+
+            <div class="export-section">
+                <button onclick="exportTranscription()">💾 전사 내용 저장</button>
+            </div>
+        </div>
+
+        <!-- 평가 탭 -->
+        <div id="evaluation" class="tab-content">
+            <h2>AI 평가 결과</h2>
+            
+            <div class="empty-state" id="evaluationEmpty">
+                <p style="text-align: center; padding: 40px; color: #666;">
+                    🎤 먼저 '녹음' 탭에서 발표를 녹음해주세요.<br><br>
+                    전사가 완료되면 자동으로 AI 평가가 진행됩니다.
+                </p>
+            </div>
+            
+            <div class="loading" id="evaluationLoading" style="display: none;">
+                <div class="spinner"></div>
+                <p>GPT-5로 발표를 분석하고 있습니다...</p>
+                <p>종합적인 평가를 생성 중입니다.</p>
+            </div>
+
+            <div id="evaluationResults" style="display: none;">
+                <div class="evaluation-card">
+                    <h3>🎯 종합 평가</h3>
+                    <div id="overallEvaluation"></div>
+                </div>
+
+                <div class="evaluation-card">
+                    <h3>📈 세부 평가 항목</h3>
+                    <div id="detailedScores"></div>
+                </div>
+
+                <div class="evaluation-card">
+                    <h3>💪 강점</h3>
+                    <div id="strengths"></div>
+                </div>
+
+                <div class="evaluation-card">
+                    <h3>🎯 개선점</h3>
+                    <div id="improvements"></div>
+                </div>
+
+                <div class="export-section">
+                    <button onclick="exportEvaluation()">💾 평가 결과 저장</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 코칭 탭 -->
+        <div id="coaching" class="tab-content">
+            <h2>맞춤형 코칭</h2>
+            
+            <div class="empty-state" id="coachingEmpty">
+                <p style="text-align: center; padding: 40px; color: #666;">
+                    🎤 먼저 '녹음' 탭에서 발표를 녹음해주세요.<br><br>
+                    평가가 완료되면 자동으로 맞춤형 코칭이 생성됩니다.
+                </p>
+            </div>
+            
+            <div class="loading" id="coachingLoading" style="display: none;">
+                <div class="spinner"></div>
+                <p>맞춤형 코칭 질문을 생성하고 있습니다...</p>
+            </div>
+
+            <div id="coachingContent" style="display: none;">
+                <div class="evaluation-card">
+                    <h3>🌟 개인 맞춤 피드백</h3>
+                    <div id="personalizedFeedback"></div>
+                </div>
+
+                <div class="evaluation-card">
+                    <h3>🤔 성찰을 위한 코칭 질문</h3>
+                    <div id="coachingQuestions"></div>
+                </div>
+
+                <div class="evaluation-card">
+                    <h3>📚 추천 학습 자료</h3>
+                    <div id="learningResources"></div>
+                </div>
+
+                <div class="evaluation-card">
+                    <h3>🎯 다음 발표를 위한 목표</h3>
+                    <div id="nextGoals"></div>
+                </div>
+
+                <div class="export-section">
+                    <button onclick="exportCoaching()">💾 코칭 내용 저장</button>
+                    <button onclick="printReport()" class="success">🖨️ 전체 리포트 출력</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 종료 확인 모달 -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                ⚠️ 녹음 종료 확인
+            </div>
+            <div class="modal-body">
+                <p><strong>정말로 녹음을 종료하시겠습니까?</strong></p>
+                <p>녹음을 종료하면 다음 프로세스가 자동으로 진행됩니다:</p>
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li>Whisper AI를 통한 정확한 전사 (30초~1분)</li>
+                    <li>GPT-5를 통한 발표 평가 (1~2분)</li>
+                    <li>맞춤형 코칭 질문 생성 (30초)</li>
+                </ul>
+                <p style="color: #f44336; font-weight: bold;">
+                    ⚠️ 한 번 종료하면 이 세션에서 다시 녹음할 수 없습니다.
+                    새로운 녹음을 원하시면 '새 세션'을 시작해야 합니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal()">취소</button>
+                <button onclick="stopRecording()" class="danger">종료하고 분석 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 전역 변수
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recognition = null;
+        let isRecording = false;
+        let startTime = null;
+        let timerInterval = null;
+        let previewTranscript = '';
+        let finalTranscriptText = '';
+        let evaluationData = null;
+        let coachingData = null;
+
+        // 페이지 로드 시 초기화
+        window.onload = function() {
+            console.log('Loading transcription-advanced.html - GPT-5 version');
+            // API 키 확인
+            if (typeof CONFIG === 'undefined' || !CONFIG.OPENAI_API_KEY || CONFIG.OPENAI_API_KEY === 'sk-your-actual-api-key-here') {
+                showStatus('recordingStatus', '⚠️ config.js 파일에 OpenAI API 키를 설정해주세요', 'error');
+            }
+
+            // 마이크 권한 확인
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showStatus('recordingStatus', '⚠️ 이 브라우저는 오디오 녹음을 지원하지 않습니다', 'error');
+            }
+
+            // Web Speech API 확인
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                showStatus('recordingStatus', 'ℹ️ 실시간 미리보기는 Chrome/Edge/Safari에서만 지원됩니다', 'warning');
+            }
+        };
+
+        // 탭 전환 함수는 head에 정의됨
+
+        // 녹음 시작
+        async function startRecording() {
+            // 학생 정보 확인
+            const studentName = document.getElementById('studentName').value.trim();
+            const presentationTitle = document.getElementById('presentationTitle').value.trim();
+            
+            if (!studentName || !presentationTitle) {
+                alert('학생 이름과 발표 제목을 입력해주세요!');
+                return;
+            }
+
+            try {
+                // 마이크 권한 요청
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // MediaRecorder 설정
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    await processRecording(audioBlob);
+                };
+
+                // 녹음 시작
+                mediaRecorder.start(1000); // 1초마다 데이터 수집
+                isRecording = true;
+                startTime = new Date();
+                
+                // UI 업데이트
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('visualizer').style.display = 'flex';
+                document.getElementById('timer').classList.add('recording');
+                
+                // 타이머 시작
+                startTimer();
+                
+                // 실시간 미리보기 시작 (지원하는 경우)
+                startRealtimePreview();
+                
+                showStatus('recordingStatus', '🎤 녹음이 시작되었습니다', 'success');
+                
+            } catch (error) {
+                console.error('녹음 시작 오류:', error);
+                showStatus('recordingStatus', '❌ 마이크 접근 권한이 필요합니다', 'error');
+            }
+        }
+
+        // 실시간 미리보기
+        function startRealtimePreview() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    
+                    if (event.results[i].isFinal) {
+                        previewTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript = transcript;
+                    }
+                }
+                
+                // 미리보기 업데이트
+                document.getElementById('previewArea').innerHTML = 
+                    `<div>${previewTranscript}</div>
+                     <div style="color: #999; font-style: italic;">${interimTranscript}</div>`;
+            };
+
+            recognition.onerror = (event) => {
+                console.error('음성 인식 오류:', event.error);
+            };
+
+            recognition.onend = () => {
+                if (isRecording) {
+                    // 자동 재시작
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch(e) {
+                            console.error('재시작 실패:', e);
+                        }
+                    }, 100);
+                }
+            };
+
+            recognition.start();
+        }
+
+        // 타이머
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                if (startTime) {
+                    const elapsed = Math.floor((new Date() - startTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    document.getElementById('timer').textContent = 
+                        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }, 1000);
+        }
+
+        // 종료 확인
+        function confirmStop() {
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        // 모달 닫기
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('active');
+        }
+
+        // 녹음 종료
+        function stopRecording() {
+            if (!isRecording) return;
+            
+            isRecording = false;
+            
+            // MediaRecorder 중지
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            
+            // 음성 인식 중지
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
+            
+            // 타이머 중지
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            // UI 업데이트
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('visualizer').style.display = 'none';
+            document.getElementById('timer').classList.remove('recording');
+            
+            // 모달 닫기
+            closeModal();
+            
+            showStatus('recordingStatus', '⏸️ 녹음이 종료되었습니다. 분석을 시작합니다...', 'info');
+        }
+
+        // 녹음 처리
+        async function processRecording(audioBlob) {
+            // 전사 탭으로 이동
+            switchTab('transcription');
+            document.getElementById('transcriptionEmpty').style.display = 'none';
+            document.getElementById('transcriptionLoading').style.display = 'block';
+            document.getElementById('transcriptionLoading').classList.add('active');
+            
+            try {
+                // Whisper API로 전사
+                const formData = new FormData();
+                formData.append('file', audioBlob, 'recording.webm');
+                formData.append('model', 'whisper-1'); // OpenAI는 현재 'whisper-1' 사용, 'gpt-4o-transcribe'는 향후 지원 예정
+                formData.append('language', 'ko');
+                
+                const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.OPENAI_API_KEY}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('전사 실패');
+                }
+
+                const data = await response.json();
+                finalTranscriptText = data.text;
+                
+                // 전사 결과 표시
+                displayTranscription(finalTranscriptText);
+                
+                // 평가 시작 - 명시적으로 호출
+                console.log('Starting evaluation with transcript:', finalTranscriptText.substring(0, Math.min(100, finalTranscriptText.length)) + '...');
+                await startEvaluation(finalTranscriptText);
+                
+            } catch (error) {
+                console.error('전사 오류:', error);
+                showStatus('recordingStatus', '❌ 전사 중 오류가 발생했습니다', 'error');
+                document.getElementById('transcriptionLoading').classList.remove('active');
+            }
+        }
+
+        // 전사 결과 표시
+        function displayTranscription(text) {
+            document.getElementById('transcriptionLoading').classList.remove('active');
+            document.getElementById('transcriptionResult').style.display = 'block';
+            document.getElementById('transcriptionStats').style.display = 'block';
+            
+            // 전사 내용
+            document.getElementById('finalTranscript').textContent = text;
+            
+            // 통계 계산
+            const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+            const sentences = text.split(/[.!?。]+/).filter(s => s.trim().length > 0);
+            const duration = Math.floor((new Date() - startTime) / 1000);
+            const minutes = duration / 60;
+            const wpm = Math.round(words.length / minutes);
+            
+            document.getElementById('wordCount').textContent = words.length;
+            document.getElementById('sentenceCount').textContent = sentences.length;
+            document.getElementById('presentationTime').textContent = 
+                `${Math.floor(minutes)}:${(duration % 60).toString().padStart(2, '0')}`;
+            document.getElementById('wordsPerMinute').textContent = wpm;
+        }
+
+        // 평가 시작
+        async function startEvaluation(transcript) {
+            console.log('=== startEvaluation 함수 시작 ===');
+            console.log('Transcript length:', transcript?.length);
+            
+            if (!transcript || transcript.trim().length === 0) {
+                console.error('No transcript provided for evaluation');
+                showStatus('recordingStatus', '❌ 전사 내용이 없습니다', 'error');
+                return;
+            }
+            
+            // 평가 탭으로 이동
+            switchTab('evaluation');
+            document.getElementById('evaluationEmpty').style.display = 'none';
+            document.getElementById('evaluationLoading').style.display = 'block';
+            document.getElementById('evaluationLoading').classList.add('active');
+            
+            const studentName = document.getElementById('studentName').value || '학생';
+            const presentationTitle = document.getElementById('presentationTitle').value || '무제';
+            const presentationTopic = document.getElementById('presentationTopic').value || '일반';
+            
+            console.log('Student info:', { studentName, presentationTitle, presentationTopic });
+            
+            try {
+                // OpenAI responses.create API 형식
+                const requestBody = {
+                    model: 'gpt-5',
+                    instructions: '당신은 중고등학생 발표를 평가하는 전문 교육자입니다. 학생의 발표를 종합적으로 평가하고 건설적인 피드백을 제공합니다. 평가는 격려와 칭찬을 기반으로 하되, 구체적인 개선점도 제시합니다.',
+                    input: `학생 이름: ${studentName}
+발표 제목: ${presentationTitle}
+발표 주제: ${presentationTopic}
+
+발표 내용:
+${transcript}
+
+다음 형식으로 평가해주세요:
+
+## 종합 평가
+[전반적인 발표 수준과 인상적인 부분을 2-3문장으로]
+
+## 세부 평가 항목
+- 내용 구성: [점수]/10 - [평가 코멘트]
+- 논리성: [점수]/10 - [평가 코멘트]
+- 언어 표현: [점수]/10 - [평가 코멘트]
+- 발표 태도: [점수]/10 - [평가 코멘트]
+- 창의성: [점수]/10 - [평가 코멘트]
+
+## 강점 (3가지)
+1. [구체적인 강점]
+2. [구체적인 강점]
+3. [구체적인 강점]
+
+## 개선점 (3가지)
+1. [구체적인 개선점과 방법]
+2. [구체적인 개선점과 방법]
+3. [구체적인 개선점과 방법]`
+                };
+                
+                console.log('Calling API: https://api.openai.com/v1/responses');
+                console.log('Request body:', requestBody);
+                
+                const response = await fetch('https://api.openai.com/v1/responses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${CONFIG.OPENAI_API_KEY}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('API 오류 상세:', errorData);
+                    throw new Error(`평가 생성 실패: ${errorData.error?.message || '알 수 없는 오류'}`);
+                }
+
+                const data = await response.json();
+                console.log('Evaluation API Response:', data);
+                console.log('Response output field:', data.output);
+                
+                // GPT-5 응답 형식에 따라 처리 - output이 배열일 수 있음
+                let evaluation;
+                
+                if (typeof data === 'string') {
+                    evaluation = data;
+                } else if (data.output !== undefined) {
+                    // output이 배열인 경우 처리
+                    if (Array.isArray(data.output)) {
+                        console.log('Output is array with', data.output.length, 'items');
+                        console.log('First item:', data.output[0]);
+                        
+                        // 배열의 각 요소를 확인하고 텍스트 추출
+                        const textParts = [];
+                        for (let i = 0; i < data.output.length; i++) {
+                            const item = data.output[i];
+                            console.log(`Processing item ${i}:`, item);
+                            console.log(`Item type: ${typeof item}`, `Item object type: ${item?.type}`);
+                            
+                            // GPT-5: reasoning 타입은 건너뛰고 message 타입만 처리
+                            if (item && typeof item === 'object' && item.type === 'reasoning') {
+                                console.log('Skipping reasoning item');
+                                continue;
+                            }
+                            
+                            if (typeof item === 'string') {
+                                textParts.push(item);
+                                console.log('Added string item:', item.substring(0, Math.min(100, item.length)));
+                            } else if (item && typeof item === 'object') {
+                                // 객체의 모든 가능한 필드 확인
+                                let extractedText = null;
+                                
+                                // GPT-5 특수 구조: content 배열에서 text 추출
+                                if (item.content && Array.isArray(item.content)) {
+                                    for (const contentItem of item.content) {
+                                        if (contentItem && contentItem.text) {
+                                            extractedText = contentItem.text;
+                                            console.log('Found text in content array:', extractedText.substring(0, 100));
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                // 일반적인 텍스트 필드들 확인
+                                if (!extractedText && item.text) extractedText = item.text;
+                                else if (!extractedText && item.content && typeof item.content === 'string') extractedText = item.content;
+                                else if (!extractedText && item.message) extractedText = item.message;
+                                else if (!extractedText && item.output) extractedText = item.output;
+                                else if (!extractedText && item.response) extractedText = item.response;
+                                else if (!extractedText && item.value) extractedText = item.value;
+                                else if (!extractedText && item.data) extractedText = item.data;
+                                else if (!extractedText && item.result) extractedText = item.result;
+                                else if (!extractedText && item.completion) extractedText = item.completion;
+                                
+                                // 객체를 문자열로 변환 (최후의 수단)
+                                if (!extractedText) {
+                                    console.log('No text field found, converting object to string');
+                                    extractedText = JSON.stringify(item, null, 2);
+                                }
+                                
+                                // 문자열로 변환 확인
+                                if (typeof extractedText !== 'string') {
+                                    extractedText = String(extractedText);
+                                }
+                                
+                                textParts.push(extractedText);
+                                console.log('Added object text (first 100 chars):', extractedText.substring(0, Math.min(100, extractedText.length)));
+                            } else {
+                                console.log('Unknown item type, converting to string:', item);
+                                textParts.push(String(item));
+                            }
+                        }
+                        
+                        evaluation = textParts.join('\n\n');
+                        console.log('Final joined evaluation length:', evaluation.length);
+                        console.log('Final evaluation preview:', evaluation.substring(0, Math.min(300, evaluation.length)));
+                    } else if (typeof data.output === 'string') {
+                        evaluation = data.output;
+                    } else {
+                        console.log('Output is not array or string, type:', typeof data.output);
+                        evaluation = String(data.output);
+                    }
+                } else if (data.output_text) {
+                    evaluation = data.output_text;
+                } else if (data.text) {
+                    evaluation = data.text;
+                } else if (data.response) {
+                    evaluation = data.response;
+                } else if (data.choices?.[0]?.message?.content) {
+                    evaluation = data.choices[0].message.content;
+                } else if (data.content) {
+                    evaluation = data.content;
+                } else if (data.result) {
+                    evaluation = data.result;
+                } else if (data.completion) {
+                    evaluation = data.completion;
+                } else {
+                    // 전체 response 객체 확인
+                    console.error('Unexpected response format. Full response:', data);
+                    throw new Error('평가 응답 형식을 인식할 수 없습니다');
+                }
+                
+                // 평가 결과가 유효한지 확인
+                if (!evaluation || (typeof evaluation !== 'string')) {
+                    console.error('Invalid evaluation result:', evaluation);
+                    throw new Error('평가 결과가 올바르지 않습니다');
+                }
+                
+                console.log('Final evaluation text (first 200 chars):', evaluation.substring(0, Math.min(200, evaluation.length)));
+                
+                // 평가 결과 파싱 및 표시
+                displayEvaluation(evaluation);
+                
+                // 평가 데이터 저장
+                evaluationData = evaluation;
+                
+                // 코칭 생성
+                console.log('Starting coaching generation...');
+                await generateCoaching(transcript, evaluation);
+                
+            } catch (error) {
+                console.error('=== 평가 오류 발생 ===');
+                console.error('오류 메시지:', error.message);
+                console.error('오류 스택:', error.stack);
+                console.error('오류 발생 시점: evaluation 생성 중');
+                
+                // 스피너 확실히 제거
+                const loadingElement = document.getElementById('evaluationLoading');
+                if (loadingElement) {
+                    loadingElement.classList.remove('active');
+                    loadingElement.style.display = 'none';
+                }
+                
+                // 오류 메시지 표시
+                showStatus('recordingStatus', `❌ 평가 생성 중 오류: ${error.message}`, 'error');
+                
+                // 평가 탭에 오류 메시지 표시
+                const resultsElement = document.getElementById('evaluationResults');
+                if (resultsElement) {
+                    resultsElement.style.display = 'block';
+                    resultsElement.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: red;">
+                            <h3>⚠️ 평가 생성 실패</h3>
+                            <p>평가를 생성하는 중 오류가 발생했습니다.</p>
+                            <p>오류: ${error.message}</p>
+                            <button onclick="location.reload()" style="margin-top: 10px; padding: 10px 20px;">
+                                🔄 페이지 새로고침
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // 평가 결과 표시
+        function displayEvaluation(evaluation) {
+            console.log('=== displayEvaluation 함수 시작 ===');
+            console.log('Evaluation type:', typeof evaluation);
+            console.log('Evaluation length:', evaluation?.length);
+            
+            // 스피너 제거
+            const loadingElement = document.getElementById('evaluationLoading');
+            if (loadingElement) {
+                loadingElement.classList.remove('active');
+                loadingElement.style.display = 'none';
+            }
+            
+            // 결과 영역 표시
+            const resultsElement = document.getElementById('evaluationResults');
+            if (resultsElement) {
+                resultsElement.style.display = 'block';
+            }
+            
+            // 평가가 유효한지 확인
+            if (!evaluation || typeof evaluation !== 'string') {
+                console.error('Invalid evaluation data:', evaluation);
+                const overallElement = document.getElementById('overallEvaluation');
+                if (overallElement) {
+                    overallElement.innerHTML = 
+                        '<p style="color: red;">평가 데이터를 처리할 수 없습니다. 다시 시도해주세요.</p>';
+                }
+                return;
+            }
+            
+            console.log('Evaluation data is valid, proceeding with display');
+            
+            // 평가 내용을 섹션별로 파싱
+            const sections = evaluation.split('##').filter(s => s.trim());
+            
+            sections.forEach(section => {
+                const lines = section.trim().split('\n');
+                const title = lines[0].trim();
+                const content = lines.slice(1).join('\n').trim();
+                
+                if (title.includes('종합 평가')) {
+                    document.getElementById('overallEvaluation').innerHTML = `<p>${content}</p>`;
+                } else if (title.includes('세부 평가')) {
+                    const scores = content.split('\n').map(line => {
+                        const match = line.match(/(.+?):\s*(\d+)\/10\s*-\s*(.+)/);
+                        if (match) {
+                            const [, category, score, comment] = match;
+                            const scoreClass = score >= 8 ? 'excellent' : 
+                                             score >= 6 ? 'good' : 
+                                             score >= 4 ? 'average' : 'needs-improvement';
+                            return `
+                                <div style="margin-bottom: 10px;">
+                                    <strong>${category}:</strong>
+                                    <span class="score-badge ${scoreClass}">${score}/10</span>
+                                    <p style="margin-top: 5px; color: #666;">${comment}</p>
+                                </div>
+                            `;
+                        }
+                        return '';
+                    }).join('');
+                    document.getElementById('detailedScores').innerHTML = scores;
+                } else if (title.includes('강점')) {
+                    document.getElementById('strengths').innerHTML = `<ul>${content.split('\n').map(line => 
+                        line.trim() ? `<li>${line.replace(/^\d+\.\s*/, '')}</li>` : ''
+                    ).join('')}</ul>`;
+                } else if (title.includes('개선점')) {
+                    document.getElementById('improvements').innerHTML = `<ul>${content.split('\n').map(line => 
+                        line.trim() ? `<li>${line.replace(/^\d+\.\s*/, '')}</li>` : ''
+                    ).join('')}</ul>`;
+                }
+            });
+            
+            evaluationData = evaluation;
+        }
+
+        // 코칭 생성
+        async function generateCoaching(transcript, evaluation) {
+            // 코칭 탭으로 이동
+            switchTab('coaching');
+            document.getElementById('coachingEmpty').style.display = 'none';
+            document.getElementById('coachingLoading').style.display = 'block';
+            document.getElementById('coachingLoading').classList.add('active');
+            
+            const studentName = document.getElementById('studentName').value;
+            
+            try {
+                const requestBody = {
+                    model: 'gpt-5',
+                    instructions: '당신은 학생의 성장을 돕는 따뜻한 교육 코치입니다. 학생의 발표와 평가를 바탕으로 맞춤형 피드백과 코칭 질문을 제공합니다. 학생이 스스로 성찰하고 성장할 수 있도록 돕는 것이 목표입니다.',
+                    input: `${studentName} 학생을 위한 맞춤형 코칭을 제공해주세요.
+
+발표 내용:
+${transcript}
+
+평가 결과:
+${evaluation}
+
+다음 형식으로 코칭을 제공해주세요:
+
+## 개인 맞춤 피드백
+[학생의 이름을 사용하여 따뜻하고 격려적인 메시지를 3-4문장으로 작성]
+
+## 성찰을 위한 코칭 질문 (5개)
+1. [발표 내용과 관련된 깊이 있는 성찰 질문]
+2. [학습 과정에 대한 질문]
+3. [개선 방향에 대한 질문]
+4. [창의적 사고를 자극하는 질문]
+5. [미래 목표와 연결된 질문]
+
+## 추천 학습 자료
+- [구체적인 학습 방법이나 자료 3가지]
+
+## 다음 발표를 위한 목표 (3가지)
+1. [구체적이고 측정 가능한 목표]
+2. [구체적이고 측정 가능한 목표]
+3. [구체적이고 측정 가능한 목표]`
+                };
+                
+                console.log('Calling Coaching API: https://api.openai.com/v1/responses');
+                console.log('Request body:', requestBody);
+                
+                const response = await fetch('https://api.openai.com/v1/responses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${CONFIG.OPENAI_API_KEY}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('코칭 API 오류 상세:', errorData);
+                    throw new Error(`코칭 생성 실패: ${errorData.error?.message || '알 수 없는 오류'}`);
+                }
+
+                const data = await response.json();
+                console.log('Coaching API Response:', data);
+                
+                // GPT-5 응답 형식에 따라 처리 - output이 배열일 수 있음
+                let coaching;
+                
+                if (data.output) {
+                    if (Array.isArray(data.output)) {
+                        console.log('Coaching output is array with', data.output.length, 'items');
+                        console.log('First coaching item:', data.output[0]);
+                        
+                        const textParts = [];
+                        for (let i = 0; i < data.output.length; i++) {
+                            const item = data.output[i];
+                            console.log(`Processing coaching item ${i}:`, item);
+                            console.log(`Coaching item type: ${typeof item}`, `Coaching item object type: ${item?.type}`);
+                            
+                            // GPT-5: reasoning 타입은 건너뛰고 message 타입만 처리
+                            if (item && typeof item === 'object' && item.type === 'reasoning') {
+                                console.log('Skipping coaching reasoning item');
+                                continue;
+                            }
+                            
+                            if (typeof item === 'string') {
+                                textParts.push(item);
+                                console.log('Added coaching string item:', item.substring(0, Math.min(100, item.length)));
+                            } else if (item && typeof item === 'object') {
+                                // 객체의 모든 가능한 필드 확인
+                                let extractedText = null;
+                                
+                                // GPT-5 특수 구조: content 배열에서 text 추출
+                                if (item.content && Array.isArray(item.content)) {
+                                    for (const contentItem of item.content) {
+                                        if (contentItem && contentItem.text) {
+                                            extractedText = contentItem.text;
+                                            console.log('Found coaching text in content array:', extractedText.substring(0, 100));
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (!extractedText && item.text) extractedText = item.text;
+                                else if (!extractedText && item.content && typeof item.content === 'string') extractedText = item.content;
+                                else if (!extractedText && item.message) extractedText = item.message;
+                                else if (!extractedText && item.output) extractedText = item.output;
+                                else if (!extractedText && item.response) extractedText = item.response;
+                                else if (!extractedText && item.value) extractedText = item.value;
+                                else if (!extractedText && item.data) extractedText = item.data;
+                                else if (!extractedText && item.result) extractedText = item.result;
+                                else if (!extractedText && item.completion) extractedText = item.completion;
+                                
+                                if (!extractedText) {
+                                    console.log('No coaching text field found, converting object to string');
+                                    extractedText = JSON.stringify(item, null, 2);
+                                }
+                                
+                                // 문자열로 변환 확인
+                                if (typeof extractedText !== 'string') {
+                                    extractedText = String(extractedText);
+                                }
+                                
+                                textParts.push(extractedText);
+                                console.log('Added coaching object text (first 100 chars):', extractedText.substring(0, Math.min(100, extractedText.length)));
+                            } else {
+                                console.log('Unknown coaching item type, converting to string:', item);
+                                textParts.push(String(item));
+                            }
+                        }
+                        
+                        coaching = textParts.join('\n\n');
+                        console.log('Final coaching text length:', coaching.length);
+                        console.log('Final coaching preview:', coaching.substring(0, Math.min(300, coaching.length)));
+                    } else {
+                        coaching = data.output;
+                    }
+                } else {
+                    coaching = data.output_text || data.text || data.response || data.choices?.[0]?.message?.content;
+                }
+                
+                if (!coaching) {
+                    console.error('No coaching text found. Full response:', data);
+                    throw new Error('응답에서 코칭 텍스트를 찾을 수 없습니다');
+                }
+                
+                // 코칭 결과 표시
+                displayCoaching(coaching);
+                
+            } catch (error) {
+                console.error('=== 코칭 오류 발생 ===');
+                console.error('오류 메시지:', error.message);
+                console.error('오류 스택:', error.stack);
+                console.error('오류 발생 시점: coaching 생성 중');
+                
+                // 스피너 확실히 제거
+                const loadingElement = document.getElementById('coachingLoading');
+                if (loadingElement) {
+                    loadingElement.classList.remove('active');
+                    loadingElement.style.display = 'none';
+                }
+                
+                // 오류 메시지 표시
+                showStatus('recordingStatus', `❌ 코칭 생성 중 오류: ${error.message}`, 'error');
+                
+                // 코칭 탭에 오류 메시지 표시
+                const contentElement = document.getElementById('coachingContent');
+                if (contentElement) {
+                    contentElement.style.display = 'block';
+                    contentElement.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: red;">
+                            <h3>⚠️ 코칭 생성 실패</h3>
+                            <p>코칭을 생성하는 중 오류가 발생했습니다.</p>
+                            <p>오류: ${error.message}</p>
+                            <button onclick="location.reload()" style="margin-top: 10px; padding: 10px 20px;">
+                                🔄 페이지 새로고침
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // 코칭 결과 표시
+        function displayCoaching(coaching) {
+            console.log('=== displayCoaching 함수 시작 ===');
+            console.log('Coaching type:', typeof coaching);
+            console.log('Coaching length:', coaching?.length);
+            
+            // 스피너 제거
+            const loadingElement = document.getElementById('coachingLoading');
+            if (loadingElement) {
+                loadingElement.classList.remove('active');
+                loadingElement.style.display = 'none';
+            }
+            
+            // 결과 영역 표시
+            const contentElement = document.getElementById('coachingContent');
+            if (contentElement) {
+                contentElement.style.display = 'block';
+            }
+            
+            // 코칭이 유효한지 확인
+            if (!coaching || typeof coaching !== 'string') {
+                console.error('Invalid coaching data:', coaching);
+                const feedbackElement = document.getElementById('personalizedFeedback');
+                if (feedbackElement) {
+                    feedbackElement.innerHTML = 
+                        '<p style="color: red;">코칭 데이터를 처리할 수 없습니다. 다시 시도해주세요.</p>';
+                }
+                return;
+            }
+            
+            console.log('Coaching data is valid, proceeding with display');
+            
+            // 코칭 내용을 섹션별로 파싱
+            const sections = coaching.split('##').filter(s => s.trim());
+            
+            sections.forEach(section => {
+                const lines = section.trim().split('\n');
+                const title = lines[0].trim();
+                const content = lines.slice(1).join('\n').trim();
+                
+                if (title.includes('개인 맞춤 피드백')) {
+                    document.getElementById('personalizedFeedback').innerHTML = `<p>${content}</p>`;
+                } else if (title.includes('코칭 질문')) {
+                    const questions = content.split('\n').map(line => {
+                        if (line.trim() && line.match(/^\d+\./)) {
+                            return `<div class="coaching-question">${line.replace(/^\d+\.\s*/, '')}</div>`;
+                        }
+                        return '';
+                    }).join('');
+                    document.getElementById('coachingQuestions').innerHTML = questions;
+                } else if (title.includes('학습 자료')) {
+                    document.getElementById('learningResources').innerHTML = `<ul>${content.split('\n').map(line => 
+                        line.trim() ? `<li>${line.replace(/^-\s*/, '')}</li>` : ''
+                    ).join('')}</ul>`;
+                } else if (title.includes('다음 발표')) {
+                    document.getElementById('nextGoals').innerHTML = `<ol>${content.split('\n').map(line => 
+                        line.trim() && line.match(/^\d+\./) ? `<li>${line.replace(/^\d+\.\s*/, '')}</li>` : ''
+                    ).join('')}</ol>`;
+                }
+            });
+            
+            coachingData = coaching;
+            
+            showStatus('recordingStatus', '✅ 모든 분석이 완료되었습니다!', 'success');
+        }
+
+        // 새 세션
+        function resetSession() {
+            if (isRecording) {
+                alert('먼저 녹음을 종료해주세요.');
+                return;
+            }
+            
+            if (confirm('새 세션을 시작하시겠습니까? 현재 데이터는 저장되지 않습니다.')) {
+                location.reload();
+            }
+        }
+
+        // 전사 내용 내보내기
+        function exportTranscription() {
+            const studentName = document.getElementById('studentName').value || '학생';
+            const presentationTitle = document.getElementById('presentationTitle').value || '발표';
+            const date = new Date().toLocaleDateString('ko-KR');
+            
+            const content = `# ${presentationTitle}
+
+## 발표자 정보
+- 이름: ${studentName}
+- 학번: ${document.getElementById('studentNumber').value || '-'}
+- 날짜: ${date}
+
+## 발표 내용
+${finalTranscriptText}
+
+## 통계
+- 단어 수: ${document.getElementById('wordCount').textContent}개
+- 문장 수: ${document.getElementById('sentenceCount').textContent}개
+- 발표 시간: ${document.getElementById('presentationTime').textContent}
+- 분당 단어 수: ${document.getElementById('wordsPerMinute').textContent}개
+
+---
+*AI 발표 전사 시스템으로 생성됨*`;
+
+            downloadFile(content, `${studentName}_전사_${date}.md`, 'text/markdown');
+        }
+
+        // 평가 결과 내보내기
+        function exportEvaluation() {
+            const studentName = document.getElementById('studentName').value || '학생';
+            const date = new Date().toLocaleDateString('ko-KR');
+            
+            const content = `# 발표 평가 결과
+
+## 학생 정보
+- 이름: ${studentName}
+- 날짜: ${date}
+
+${evaluationData}
+
+---
+*AI 발표 평가 시스템으로 생성됨*`;
+
+            downloadFile(content, `${studentName}_평가_${date}.md`, 'text/markdown');
+        }
+
+        // 코칭 내용 내보내기
+        function exportCoaching() {
+            const studentName = document.getElementById('studentName').value || '학생';
+            const date = new Date().toLocaleDateString('ko-KR');
+            
+            const content = `# 맞춤형 코칭
+
+## 학생 정보
+- 이름: ${studentName}
+- 날짜: ${date}
+
+${coachingData}
+
+---
+*AI 코칭 시스템으로 생성됨*`;
+
+            downloadFile(content, `${studentName}_코칭_${date}.md`, 'text/markdown');
+        }
+
+        // 전체 리포트 출력
+        function printReport() {
+            const studentName = document.getElementById('studentName').value || '학생';
+            const presentationTitle = document.getElementById('presentationTitle').value || '발표';
+            const date = new Date().toLocaleDateString('ko-KR');
+            
+            const reportWindow = window.open('', '_blank');
+            reportWindow.document.write(`
+                <!DOCTYPE html>
+                <html lang="ko">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${studentName} - 발표 평가 리포트</title>
+                    <style>
+                        body { font-family: 'Malgun Gothic', sans-serif; padding: 40px; line-height: 1.8; }
+                        h1 { color: #333; border-bottom: 3px solid #6e8efb; padding-bottom: 10px; }
+                        h2 { color: #6e8efb; margin-top: 30px; }
+                        h3 { color: #666; }
+                        .section { margin-bottom: 30px; page-break-inside: avoid; }
+                        .info { background: #f5f5f5; padding: 15px; border-radius: 10px; }
+                        @media print { 
+                            body { padding: 20px; }
+                            .section { page-break-inside: avoid; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>${presentationTitle} - 발표 평가 리포트</h1>
+                    
+                    <div class="section info">
+                        <h2>학생 정보</h2>
+                        <p>이름: ${studentName}</p>
+                        <p>날짜: ${date}</p>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>전사 내용</h2>
+                        <p>${finalTranscriptText}</p>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>평가 결과</h2>
+                        <pre style="white-space: pre-wrap;">${evaluationData || '평가 데이터 없음'}</pre>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>맞춤형 코칭</h2>
+                        <pre style="white-space: pre-wrap;">${coachingData || '코칭 데이터 없음'}</pre>
+                    </div>
+                    
+                    <script>window.print();<\/script>
+                </body>
+                </html>
+            `);
+        }
+
+        // 파일 다운로드
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // 상태 메시지 표시
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = 'status-message ' + type;
+            element.textContent = message;
+            element.style.display = 'block';
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
